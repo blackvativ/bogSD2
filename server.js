@@ -69,3 +69,23 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("BOG Server running on port " + PORT);
 });
+
+app.post("/bog-callback", express.json(), async (req, res) => {
+  const data = req.body;
+
+  console.log("BOG CALLBACK RECEIVED:", data);
+
+  // Example fields
+  const bogStatus = data.installment_status;
+  const shopOrderId = data.shop_order_id;
+  const bogOrderId = data.order_id;
+
+  if (bogStatus === "success") {
+    // Optional: You could call Shopify Admin API here to update order status
+    console.log(`✅ Order ${shopOrderId} was approved by BOG!`);
+  } else {
+    console.log(`⚠️ Order ${shopOrderId} not approved: ${bogStatus}`);
+  }
+
+  res.status(200).send("OK");
+});
