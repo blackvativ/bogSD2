@@ -1,119 +1,71 @@
-/**
- * This is the main Node.js server script for your project
- * Check out the two endpoints this back-end API provides in fastify.get and fastify.post below
- */
+const express = require("express");
+const fetch = require("node-fetch");
+const cors = require("cors");
 
-const path = require("path");
+const app = express();
+app.use(express.json());
+app.use(cors());
 
-// Require the fastify framework and instantiate it
-const fastify = require("fastify")({
-  // Set this to true for detailed logging:
-  logger: false,
+app.get("/", (req, res) => {
+  res.send("BOG Server is running ✅");
 });
 
-// ADD FAVORITES ARRAY VARIABLE FROM TODO HERE
+app.post("/bog-checkout", async (req, res) => {
+  const { productId, productName, price, image, url } = req.body;
 
-// Setup our static files
-fastify.register(require("@fastify/static"), {
-  root: path.join(__dirname, "public"),
-  prefix: "/", // optional: default '/'
-});
+  try {
+    const token = Buffer.from(`${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`).toString("base64");
+    const auth = await fetch("https://installment.bog.ge/v1/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${token}`,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials"
+    });
 
-// Formbody lets us parse incoming forms
-fastify.register(require("@fastify/formbody"));
+    const authData = await auth.json();
+    const accessToken = authData.access_token;
 
-// View is a templating manager for fastify
-fastify.register(require("@fastify/view"), {
-  engine: {
-    handlebars: require("handlebars"),
-  },
-});
+    const bogOrder = await fetch("https://installment.bog.ge/v1/installment/checkout", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        intent: "LOAN",
+        installment_month: "6",
+        installment_type: "STANDARD",
+        shop_order_id: "shopify-" + productId + "-" + Date.now(),
+        success_redirect_url: "https://yourstore.myshopify.com/pages/bog-success",
+        fail_redirect_url: "https://yourstore.myshopify.com/pages/bog-fail",
+        reject_redirect_url: "https://yourstore.myshopify.com/pages/bog-reject",
+        purchase_units: [
+          { amount: { currency_code: "GEL", value: price } }
+        ],
+        cart_items: [
+          {
+            total_item_amount: price,
+            item_description: productName,
+            total_item_qty: 1,
+            item_vendor_code: productId,
+            product_image_url: image,
+            item_site_detail_url: url
+          }
+        ]
+      })
+    });
 
-// Load and parse SEO data
-const seo = require("./src/seo.json");
-if (seo.url === "glitch-default") {
-  seo.url = `https://${process.env.PROJECT_DOMAIN}.glitch.me`;
-}
-
-/**
- * Our home page route
- *
- * Returns src/pages/index.hbs with data built into it
- */
-fastify.get("/", function (request, reply) {
-  // params is an object we'll pass to our handlebars template
-  let params = { seo: seo };
-
-  // If someone clicked the option for a random color it'll be passed in the querystring
-  if (request.query.randomize) {
-    // We need to load our color data file, pick one at random, and add it to the params
-    const colors = require("./src/colors.json");
-    const allColors = Object.keys(colors);
-    let currentColor = allColors[(allColors.length * Math.random()) << 0];
-
-    // Add the color properties to the params object
-    params = {
-      color: colors[currentColor],
-      colorError: null,
-      seo: seo,
-    };
+    const bogData = await bogOrder.json();
+    res.json({ redirect: bogData.links.redirect });
+  } catch (err) {
+    console.error("BOG ERROR:", err);
+    res.status(500).json({ error: "Something went wrong with BOG checkout" });
   }
-
-  // The Handlebars code will be able to access the parameter values and build them into the page
-  return reply.view("/src/pages/index.hbs", params);
 });
 
-/**
- * Our POST route to handle and react to form submissions
- *
- * Accepts body data indicating the user choice
- */
-fastify.post("/", function (request, reply) {
-  // Build the params object to pass to the template
-  let params = { seo: seo };
-
-  // If the user submitted a color through the form it'll be passed here in the request body
-  let color = request.body.color;
-
-  // If it's not empty, let's try to find the color
-  if (color) {
-    // ADD CODE FROM TODO HERE TO SAVE SUBMITTED FAVORITES
-
-    // Load our color data file
-    const colors = require("./src/colors.json");
-
-    // Take our form submission, remove whitespace, and convert to lowercase
-    color = color.toLowerCase().replace(/\s/g, "");
-
-    // Now we see if that color is a key in our colors object
-    if (colors[color]) {
-      // Found one!
-      params = {
-        color: colors[color],
-        colorError: null,
-        seo: seo,
-      };
-    } else {
-      // No luck! Return the user value as the error property
-      params = {
-        colorError: request.body.color,
-        seo: seo,
-      };
-    }
-  }
-
-  // The Handlebars template will use the parameter values to update the page with the chosen color
-  return reply.view("/src/pages/index.hbs", params);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("BOG Server running on port " + PORT);
 });
-
-// Run the server and report out to the logs
-fastify.listen(
-  { port: process.env.PORT, host: "0.0.0.0" },
-  function (err, address) {
-    if (err) {
-      console.error(err);
-      process.exit(1);
-    }
-    console.log(`Your app is listening on ${address}`);
-  }
-);
