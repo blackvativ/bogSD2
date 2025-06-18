@@ -14,6 +14,11 @@ app.post("/bog-checkout", async (req, res) => {
   const { productId, productName, price, image, url } = req.body;
 
   try {
+    console.log("ENV DEBUG", {
+  client: process.env.BOG_CLIENT_ID,
+  secret: process.env.BOG_SECRET_KEY
+});
+
     const token = Buffer.from(`${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`).toString("base64");
     const auth = await fetch("https://installment.bog.ge/v1/oauth2/token", {
       method: "POST",
