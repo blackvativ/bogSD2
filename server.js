@@ -59,7 +59,14 @@ app.post("/bog-checkout", async (req, res) => {
     });
 
     const bogData = await bogOrder.json();
-    res.json({ redirect: bogData.links.redirect });
+    console.log("BOG RESPONSE:", bogData);
+
+if (bogData && bogData.links && bogData.links.redirect) {
+  res.json({ redirect: bogData.links.redirect });
+} else {
+  res.status(500).json({ error: "BOG did not return redirect link" });
+}
+
   } catch (err) {
     console.error("BOG ERROR:", err);
     res.status(500).json({ error: "Something went wrong with BOG checkout" });
