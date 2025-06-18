@@ -38,9 +38,10 @@ app.post("/bog-checkout", async (req, res) => {
         installment_month: "6",
         installment_type: "STANDARD",
         shop_order_id: "shopify-" + productId + "-" + Date.now(),
-        success_redirect_url: "https://yourstore.myshopify.com/pages/bog-success",
-        fail_redirect_url: "https://yourstore.myshopify.com/pages/bog-fail",
-        reject_redirect_url: "https://yourstore.myshopify.com/pages/bog-reject",
+        success_redirect_url: "https://smartdoor.ge/pages/bog-success",
+        fail_redirect_url: "https://smartdoor.ge/pages/bog-fail",
+        reject_redirect_url: "https://smartdoor.ge/pages/bog-reject",
+
         purchase_units: [
           { amount: { currency_code: "GEL", value: price } }
         ],
