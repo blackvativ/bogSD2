@@ -69,7 +69,9 @@ app.post("/bog-checkout", async (req, res) => {
     };
 
     console.log("BOG REQUEST BODY", checkoutBody);
-
+    console.log("BOG CHECKOUT BODY:", JSON.stringify(checkoutBody, null, 2));
+`    console.log("📦 Data being sent to BOG:", JSON.stringify(checkoutBody, null, 2));
+`
     const bogOrder = await fetch("https://installment.bog.ge/v1/installment/checkout", {
       method: "POST",
       headers: {
