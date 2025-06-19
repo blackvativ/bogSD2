@@ -75,7 +75,7 @@ app.post("/bog-checkout", async (req, res) => {
     const bogOrder = await fetch("https://installment.bog.ge/v1/installment/checkout", {
       method: "POST",
       headers: {
-        "horization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(checkoutBody)
