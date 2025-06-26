@@ -1,5 +1,5 @@
 const express = require("express");
-const fetch = require("node-fetch");
+const fetch = require =("node-fetch");
 const cors = require("cors");
 
 const app = express();
@@ -58,7 +58,24 @@ app.post("/bog-checkout", async (req, res) => {
     // ნაბიჯი 2: გადახდის შეკვეთის შექმნა (აგრეგატორის ახალი ენდპოინტი და სტრუქტურა)
     // ახალი დოკუმენტაციის მიხედვით purchase_units.total_amount არის number
     // და purchase_units.basket[].unit_price არის number
-    const productPriceNumber = parseFloat(price); // ფასი გადააქციეთ რიცხვად
+
+    // --- START PRICE CLEANUP (Improved) ---
+    // Price cleaning logic:
+    // 1. Remove dots that are used as thousands separators (e.g., in "1.200.00" -> "1200.00")
+    //    This regex /\.(?=\d{3})/g matches a dot ONLY if it's followed by exactly three digits.
+    let cleanedPriceString = price.replace(/\.(?=\d{3})/g, '');
+    
+    // 2. If the decimal separator in the original string was a comma (e.g., "1200,50"), replace it with a dot.
+    //    (This step is commented out as your current format uses dots for decimals too, but keep in mind for other locales)
+    // cleanedPriceString = cleanedPriceString.replace(/,/g, '.'); 
+    
+    const productPriceNumber = parseFloat(cleanedPriceString); // Convert to number
+    // --- END PRICE CLEANUP ---
+
+    console.log("Original price received:", price);
+    console.log("Cleaned price for parseFloat:", cleanedPriceString);
+    console.log("Parsed productPriceNumber:", productPriceNumber);
+
 
     const orderPayload = {
       // callback_url აუცილებელია, აქ უნდა იყოს თქვენი Glitch სერვერის ქოლბექ ენდპოინტი
@@ -66,13 +83,13 @@ app.post("/bog-checkout", async (req, res) => {
       external_order_id: "shopify-" + productId + "-" + Date.now(), // თქვენი შეკვეთის უნიკალური ID
       purchase_units: {
         currency: "GEL", // ნაგულისხმევად GEL, მაგრამ შეგიძლიათ მიუთითოთ
-        total_amount: productPriceNumber, // მთლიანი გადასახდელი თანხა, როგორც რიცხვი
+        total_amount: productPriceNumber, // მთლიანი გადასახდელი თანხა, როგორც რიცხვი (use productPriceNumber directly)
         basket: [
           {
             product_id: productId, // პროდუქტის ID
             description: productName, // პროდუქტის აღწერა
             quantity: 1, // რაოდენობა
-            unit_price: productPriceNumber, // ერთეულის ფასი, როგორც რიცხვი
+            unit_price: productPriceNumber, // ერთეულის ფასი, როგორც რიცხვი (use productPriceNumber directly)
             image: image, // პროდუქტის სურათის URL (optional)
             // აქ შეგიძლიათ დაამატოთ სხვა optional ველები კალათისთვის
           }
@@ -121,7 +138,11 @@ app.post("/bog-checkout", async (req, res) => {
       res.json({ redirect: bogData._links.redirect.href });
     } else {
       console.error("BOG did not return redirect link from new API:", bogData);
-      res.status(500).json({ error: "BOG did not return redirect link", detail: bogData });
+      // Respond to frontend with the specific BOG error message
+      res.status(400).json({ // Changed status to 400 as it's a client-side error (invalid amount)
+        error: bogData.message || "BOG did not return redirect link",
+        detail: bogData
+      });
     }
 
   } catch (err) {
