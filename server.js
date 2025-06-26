@@ -6,11 +6,18 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// Glitch-ის გარემოს ცვლადების წვდომისთვის
+// დარწმუნდით, რომ თქვენს .env ფაილში გაქვთ BOG_CLIENT_ID და BOG_SECRET_KEY
+// მაგალითად:
+// BOG_CLIENT_ID=34654
+// BOG_SECRET_KEY=yzAcwPb10NEP
+
 app.get("/", (req, res) => {
   res.send("BOG Server is running ✅");
 });
 
 app.post("/bog-checkout", async (req, res) => {
+  // მონაცემები Shopify-დან (ფრონტენდიდან)
   const { productId, productName, price, image, url } = req.body;
 
   try {
@@ -19,100 +26,129 @@ app.post("/bog-checkout", async (req, res) => {
       secret: process.env.BOG_SECRET_KEY
     });
 
-    const token = Buffer.from(`${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`).toString("base64");
-    console.log("DEBUG: Base64 Token String:", token);
-    const auth = await fetch("https://installment.bog.ge/v1/oauth2/token", {
+    // ავთენტიფიკაცია: client_id და secret_key Base64 ფორმატში
+    const credentials = `${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`;
+    const encodedCredentials = Buffer.from(credentials).toString("base64");
+    console.log("DEBUG: Base64 Token String for Auth:", encodedCredentials); // დროებითი DEBUG ხაზი
+
+    // ნაბიჯი 1: access_token-ის მიღება (აგრეგატორის ახალი ენდპოინტი)
+    const authResponse = await fetch("https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token", {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${token}`,
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${encodedCredentials}` // სწორი "Authorization" ჰედერი
       },
       body: "grant_type=client_credentials"
     });
 
-    const authData = await auth.json();
+    const authData = await authResponse.json();
     const accessToken = authData.access_token;
 
     if (!accessToken) {
       console.log("BOG AUTH FAILED", authData);
-      return res.status(401).json({ error: "Authorization failed", detail: authData });
+      // თუ ავთენტიფიკაცია ვერ მოხერხდა, შეატყობინეთ ფრონტენდს
+      return res.status(authResponse.status).json({
+        error: "Authorization failed with BOG",
+        detail: authData
+      });
     }
 
-    const checkoutBody = {
-      intent: "LOAN",
-      installment_month: "6",
-      installment_type: "STANDARD",
-      shop_order_id: "shopify-" + productId + "-" + Date.now(),
-      success_redirect_url: "https://smartdoor.ge/pages/bog-success",
-      fail_redirect_url: "https://smartdoor.ge/pages/bog-fail",
-      reject_redirect_url: "https://smartdoor.ge/pages/bog-reject",
-      validate_items: true,
-      locale: "ka",
-      purchase_units: [
-        {
-          amount: {
-            currency_code: "GEL",
-            value: price.toString()
+    console.log("Access Token received successfully.");
+
+    // ნაბიჯი 2: გადახდის შეკვეთის შექმნა (აგრეგატორის ახალი ენდპოინტი და სტრუქტურა)
+    // ახალი დოკუმენტაციის მიხედვით purchase_units.total_amount არის number
+    // და purchase_units.basket[].unit_price არის number
+    const productPriceNumber = parseFloat(price); // ფასი გადააქციეთ რიცხვად
+
+    const orderPayload = {
+      // callback_url აუცილებელია, აქ უნდა იყოს თქვენი Glitch სერვერის ქოლბექ ენდპოინტი
+      callback_url: `https://${process.env.PROJECT_DOMAIN}.glitch.me/bog-callback`, // Glitch-ის პროექტის დომეინი ავტომატურად ხელმისაწვდომია
+      external_order_id: "shopify-" + productId + "-" + Date.now(), // თქვენი შეკვეთის უნიკალური ID
+      purchase_units: {
+        currency: "GEL", // ნაგულისხმევად GEL, მაგრამ შეგიძლიათ მიუთითოთ
+        total_amount: productPriceNumber, // მთლიანი გადასახდელი თანხა, როგორც რიცხვი
+        basket: [
+          {
+            product_id: productId, // პროდუქტის ID
+            description: productName, // პროდუქტის აღწერა
+            quantity: 1, // რაოდენობა
+            unit_price: productPriceNumber, // ერთეულის ფასი, როგორც რიცხვი
+            image: image, // პროდუქტის სურათის URL (optional)
+            // აქ შეგიძლიათ დაამატოთ სხვა optional ველები კალათისთვის
           }
+        ],
+        // შეგიძლიათ დაამატოთ delivery ობიექტი თუ საჭიროა
+      },
+      // გადამისამართების URL-ები ოპერაციის დასრულების შემდეგ
+      redirect_urls: {
+        success: "https://smartdoor.ge/pages/bog-success",
+        fail: "https://smartdoor.ge/pages/bog-fail" // Fail მოიცავს reject-საც
+      },
+      ttl: 15, // შეკვეთის სიცოცხლის ხანგრძლივობა წუთებში (ნაგულისხმევია 15)
+      // თუ გსურთ მხოლოდ განვადების გადახდის მეთოდი იყოს ხელმისაწვდომი:
+      payment_method: ["bog_loan"],
+      // განვადების კონფიგურაცია (აუცილებელია თუ payment_method:["bog_loan"] )
+      config: {
+        loan: {
+          type: "STANDARD", // ან "ZERO", "DISCOUNTED" - თუ გაქვთ
+          month: 6, // განვადების თვე (აქ შეგიძლიათ გადასცეთ ფრონტენდიდან თუ მომხმარებელი ირჩევს)
         }
-      ],
-      cart_items: [
-        {
-          total_item_amount: price.toString(),
-          item_description: productName,
-          total_item_qty: 1,
-          item_vendor_code: productId,
-          product_image_url: image,
-          item_site_detail_url: url
-        }
-      ]
+      },
+      // შეგიძლიათ დაამატოთ Accept-Language, Theme, application_type და ა.შ.
+      // "Accept-Language": "ka", // ქართული ენა
+      // "Theme": "light", // ღია თემა
     };
 
-    console.log("BOG REQUEST BODY", checkoutBody);
-    console.log("BOG CHECKOUT BODY:", JSON.stringify(checkoutBody, null, 2));
-`    console.log("📦 Data being sent to BOG:", JSON.stringify(checkoutBody, null, 2));
-`
-    const bogOrder = await fetch("https://installment.bog.ge/v1/installment/checkout", {
+    console.log("NEW BOG CHECKOUT PAYLOAD:", JSON.stringify(orderPayload, null, 2));
+
+    // გადახდის შეკვეთის გაგზავნა ახალ ენდპოინტზე
+    const bogOrderResponse = await fetch("https://api.bog.ge/payments/v1/ecommerce/orders", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
+        "Authorization": `Bearer ${accessToken}`, // Bearer Token ავთენტიფიკაციისთვის
+        "Content-Type": "application/json",
+        // "Idempotency-Key": "YOUR_UNIQUE_UUID_HERE" // შეგიძლიათ დაამატოთ Idempotency-Key
       },
-      body: JSON.stringify(checkoutBody)
+      body: JSON.stringify(orderPayload)
     });
 
-    const bogData = await bogOrder.json();
-    console.log("BOG RESPONSE:", bogData);
+    const bogData = await bogOrderResponse.json();
+    console.log("BOG ORDER CREATION RESPONSE:", bogData);
 
-    if (bogData && bogData.links && bogData.links.redirect) {
-      res.json({ redirect: bogData.links.redirect });
+    // გადამისამართება BOG-ის გადახდის გვერდზე
+    // ახალი დოკუმენტაციის მიხედვით: bogData._links.redirect.href
+    if (bogData && bogData._links && bogData._links.redirect && bogData._links.redirect.href) {
+      res.json({ redirect: bogData._links.redirect.href });
     } else {
+      console.error("BOG did not return redirect link from new API:", bogData);
       res.status(500).json({ error: "BOG did not return redirect link", detail: bogData });
     }
 
   } catch (err) {
-    console.error("BOG ERROR:", err);
-    res.status(500).json({ error: "Something went wrong with BOG checkout" });
+    console.error("Error during BOG checkout process:", err);
+    res.status(500).json({ error: "Something went wrong with BOG checkout", detail: err.message });
   }
 });
 
+// Callback ენდპოინტი (შეიძლება საჭიროებდეს განახლებას ახალი დოკუმენტაციის მიხედვით)
 app.post("/bog-callback", express.json(), async (req, res) => {
   const data = req.body;
-
   console.log("BOG CALLBACK RECEIVED:", data);
 
-  const bogStatus = data.installment_status;
-  const shopOrderId = data.shop_order_id;
-  const bogOrderId = data.order_id;
+  // გადახდის სტატუსის პარამეტრები შეიძლება განსხვავდებოდეს აგრეგატორის API-სთვის.
+  // შეამოწმეთ აგრეგატორის API დოკუმენტაცია ქოლბექის სექციაში.
+  // მაგალითად, შეიძლება იყოს data.status ან data.paymentStatus
+  const paymentStatus = data.status; // ეს ველი სავარაუდოდ შეიცვალა installment_status-დან
+  const externalOrderId = data.external_order_id; // შეკვეთის ID
 
-  if (bogStatus === "success") {
-    console.log(`✅ Order ${shopOrderId} was approved by BOG!`);
-    // Optionally update Shopify order status here
+  if (paymentStatus === "success") { // შეამოწმეთ ზუსტი წარმატების სტატუსი ახალ დოკუმენტაციაში
+    console.log(`✅ Order ${externalOrderId} was successfully processed by BOG!`);
+    // აქ განაახლეთ Shopify შეკვეთის სტატუსი
   } else {
-    console.log(`⚠️ Order ${shopOrderId} not approved: ${bogStatus}`);
+    console.log(`⚠️ Order ${externalOrderId} not approved/failed: ${paymentStatus}`);
   }
 
-  res.status(200).send("OK");
+  res.status(200).send("OK"); // აუცილებელია 200 HTTP სტატუსის დაბრუნება
 });
 
 const PORT = process.env.PORT || 3000;
