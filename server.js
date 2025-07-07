@@ -11,7 +11,6 @@ const BOG_AUTH_URL = "https://oauth2.bog.ge/auth/realms/bog/protocol/openid-conn
 const BOG_ORDER_URL = "https://api.bog.ge/payments/v1/ecommerce/orders";
 
 app.post("/bog-checkout", async (req, res) => {
-  // We now accept loanMonth and paymentType from the Shopify page
   const {
     productId,
     productName,
@@ -19,7 +18,7 @@ app.post("/bog-checkout", async (req, res) => {
     image,
     url,
     loanMonth,
-    paymentType // This will be 'bog_loan' or 'bnpl'
+    paymentType // 'bog_loan' or 'bnpl' from the website
   } = req.body;
 
   if (!price || !loanMonth || !paymentType) {
@@ -27,30 +26,8 @@ app.post("/bog-checkout", async (req, res) => {
   }
 
   try {
-    // Step 1: Get Access Token
-    const credentials = `${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`;
-    const encodedCredentials = Buffer.from(credentials).toString("base64");
-
-    const authResponse = await fetch(BOG_AUTH_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": `Basic ${encodedCredentials}`
-      },
-      body: "grant_type=client_credentials"
-    });
-
-    const authData = await authResponse.json();
-    const accessToken = authData.access_token;
-
-    if (!accessToken) {
-      console.error("BOG AUTH FAILED:", authData);
-      return res.status(authResponse.status).json({ error: "Authorization failed", detail: authData });
-    }
-
-    // Step 2: Create the Order
-    let cleanedPriceString = String(price).replace(/[^\d.,]+/g, '').replace(/\.(?=\d{3})/g, '').replace(/,/g, '.');
-    const productPriceNumber = parseFloat(cleanedPriceString);
+    const accessToken = await getBogAccessToken();
+    const productPriceNumber = parseFloat(price);
 
     const orderPayload = {
       callback_url: `https://${process.env.PROJECT_DOMAIN}.glitch.me/bog-callback`,
@@ -72,10 +49,9 @@ app.post("/bog-checkout", async (req, res) => {
         fail: "https://smartdoor.ge/pages/bog-fail"
       },
       ttl: 15,
-      payment_method: [paymentType], // Use paymentType from frontend ('bog_loan' or 'bnpl')
+      payment_method: [paymentType],
       config: {
         loan: {
-          // BNPL uses 'ZERO', standard loan uses 'STANDARD'
           type: paymentType === 'bnpl' ? 'ZERO' : 'STANDARD',
           month: parseInt(loanMonth)
         }
@@ -86,10 +62,7 @@ app.post("/bog-checkout", async (req, res) => {
 
     const bogOrderResponse = await fetch(BOG_ORDER_URL, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(orderPayload)
     });
 
@@ -107,6 +80,27 @@ app.post("/bog-checkout", async (req, res) => {
     res.status(500).json({ error: "Something went wrong" });
   }
 });
+
+
+// Helper function to get Access Token
+async function getBogAccessToken() {
+  const credentials = `${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`;
+  const encodedCredentials = Buffer.from(credentials).toString("base64");
+  const authResponse = await fetch(BOG_AUTH_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": `Basic ${encodedCredentials}`
+    },
+    body: "grant_type=client_credentials"
+  });
+  const authData = await authResponse.json();
+  if (!authData.access_token) {
+    console.error("BOG AUTH FAILED:", authData);
+    throw new Error("Authorization failed");
+  }
+  return authData.access_token;
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
