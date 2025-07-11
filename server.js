@@ -30,7 +30,6 @@ app.post("/bog-checkout", async (req, res) => {
     const productPriceNumber = parseFloat(price);
 
     const orderPayload = {
-      // Using the new Railway environment variable
       callback_url: `${process.env.PUBLIC_SERVER_URL}/bog-callback`,
       external_order_id: `shopify-${productId}-${Date.now()}`,
       purchase_units: {
