@@ -6,6 +6,13 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// --- TEMPORARY HARDCODED CREDENTIALS (INSECURE - FOR TESTING ONLY) ---
+const BOG_CLIENT_ID = "YOUR_CLIENT_ID"; // <-- PASTE YOUR CLIENT ID HERE
+const BOG_SECRET_KEY = "YOUR_SECRET_KEY"; // <-- PASTE YOUR SECRET KEY HERE
+const PUBLIC_SERVER_URL = "https://bogsd2-production.up.railway.app";
+// --- DO NOT KEEP THIS CODE IN A PUBLIC REPOSITORY ---
+
+
 // Aggregator API Endpoints
 const BOG_AUTH_URL = "https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token";
 const BOG_ORDER_URL = "https://api.bog.ge/payments/v1/ecommerce/orders";
@@ -30,7 +37,7 @@ app.post("/bog-checkout", async (req, res) => {
     const productPriceNumber = parseFloat(price);
 
     const orderPayload = {
-      callback_url: `${process.env.PUBLIC_SERVER_URL}/bog-callback`,
+      callback_url: `${PUBLIC_SERVER_URL}/bog-callback`,
       external_order_id: `shopify-${productId}-${Date.now()}`,
       purchase_units: {
         currency: "GEL",
@@ -82,9 +89,8 @@ app.post("/bog-checkout", async (req, res) => {
 });
 
 async function getBogAccessToken() {
-  console.log(`Attempting auth with Client ID: ${process.env.BOG_CLIENT_ID}`);
-  
-  const credentials = `${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`;
+  // Now using the hardcoded variables from above
+  const credentials = `${BOG_CLIENT_ID}:${BOG_SECRET_KEY}`;
   const encodedCredentials = Buffer.from(credentials).toString("base64");
   const authResponse = await fetch(BOG_AUTH_URL, {
     method: "POST",
