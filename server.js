@@ -7,8 +7,8 @@ app.use(express.json());
 app.use(cors());
 
 // --- TEMPORARY HARDCODED CREDENTIALS (INSECURE - FOR TESTING ONLY) ---
-const BOG_CLIENT_ID = "YOUR_CLIENT_ID"; // <-- PASTE YOUR CLIENT ID HERE
-const BOG_SECRET_KEY = "YOUR_SECRET_KEY"; // <-- PASTE YOUR SECRET KEY HERE
+const BOG_CLIENT_ID = "34654"; // <-- PASTE YOUR CLIENT ID HERE
+const BOG_SECRET_KEY = "yzAcwPb10NEP"; // <-- PASTE YOUR SECRET KEY HERE
 const PUBLIC_SERVER_URL = "https://bogsd2-production.up.railway.app";
 // --- DO NOT KEEP THIS CODE IN A PUBLIC REPOSITORY ---
 
