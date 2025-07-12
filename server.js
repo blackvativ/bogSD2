@@ -2,14 +2,39 @@ const express = require("express");
 const fetch = require("node-fetch");
 const cors = require("cors");
 
+const express = require("express");
+const fetch = require("node-fetch");
+const cors = require("cors");
+
 const app = express();
-app.use(express.json());
-// A more specific CORS configuration
+
+// ✅
+// ✅ CRITICAL: CORS middleware must be the first 'app.use'
+// ✅
 app.use(cors({
-  origin: "https://smartdoor.ge", // The specific origin of your Shopify store
+  origin: "https://smartdoor.ge",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+// Other middleware comes after CORS
+app.use(express.json());
+
+
+// --- YOUR ROUTES START HERE ---
+
+// A simple root route to confirm the server is running
+app.get("/", (req, res) => {
+  res.send("BOG Aggregator Server is running on Vercel ✅");
+});
+
+app.post("/bog-checkout", async (req, res) => {
+  // ... your existing checkout code ...
+});
+
+// ... rest of your file ...
+
+module.exports = app;
 
 // Aggregator API Endpoints
 const BOG_AUTH_URL = "https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token";
