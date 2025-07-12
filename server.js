@@ -82,6 +82,10 @@ app.post("/bog-checkout", async (req, res) => {
 });
 
 async function getBogAccessToken() {
+  // --- NEW DEBUGGING LINE ---
+  console.log(`Attempting auth with Client ID: ${process.env.BOG_CLIENT_ID}`);
+  // --- END NEW DEBUGGING LINE ---
+
   const credentials = `${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`;
   const encodedCredentials = Buffer.from(credentials).toString("base64");
   const authResponse = await fetch(BOG_AUTH_URL, {
