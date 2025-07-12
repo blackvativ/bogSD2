@@ -10,6 +10,11 @@ app.use(cors());
 const BOG_AUTH_URL = "https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token";
 const BOG_ORDER_URL = "https://api.bog.ge/payments/v1/ecommerce/orders";
 
+// A simple root route to confirm the server is running
+app.get("/", (req, res) => {
+  res.send("BOG Aggregator Server is running on Vercel ✅");
+});
+
 app.post("/bog-checkout", async (req, res) => {
   const {
     productId,
@@ -29,7 +34,7 @@ app.post("/bog-checkout", async (req, res) => {
     const accessToken = await getBogAccessToken();
     const productPriceNumber = parseFloat(price);
 
-    // Using Vercel's automatic URL variable
+    // Use Vercel's automatic URL variable for the callback
     const callbackUrl = `https://${process.env.VERCEL_URL}/bog-callback`;
 
     const orderPayload = {
@@ -84,6 +89,13 @@ app.post("/bog-checkout", async (req, res) => {
   }
 });
 
+// A dummy callback route for testing purposes
+app.post("/bog-callback", (req, res) => {
+    console.log("Received BOG callback:", req.body);
+    res.status(200).send("OK");
+});
+
+
 async function getBogAccessToken() {
   console.log(`Attempting auth with Client ID: ${process.env.BOG_CLIENT_ID}`);
   
@@ -105,7 +117,14 @@ async function getBogAccessToken() {
   return authData.access_token;
 }
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`BOG Aggregator Server is running on port ${PORT}`);
-});
+// Vercel handles the port automatically, so we don't need to listen manually.
+// If you need to run it locally, you can use the following:
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server is running for local development on port ${PORT}`);
+    });
+}
+
+// Export the app for Vercel's serverless environment
+module.exports = app;
