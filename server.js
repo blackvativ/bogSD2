@@ -6,14 +6,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// --- START OF NEW DEBUGGING CODE ---
-// This will print all environment variables the server can see when it starts.
-console.log("--- RAILWAY ENVIRONMENT VARIABLES ---");
-console.log(process.env);
-console.log("------------------------------------");
-// --- END OF NEW DEBUGGING CODE ---
-
-
 // Aggregator API Endpoints
 const BOG_AUTH_URL = "https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token";
 const BOG_ORDER_URL = "https://api.bog.ge/payments/v1/ecommerce/orders";
@@ -66,6 +58,8 @@ app.post("/bog-checkout", async (req, res) => {
       }
     };
 
+    console.log("Sending Aggregator Checkout Payload:", JSON.stringify(orderPayload, null, 2));
+
     const bogOrderResponse = await fetch(BOG_ORDER_URL, {
       method: "POST",
       headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -73,6 +67,7 @@ app.post("/bog-checkout", async (req, res) => {
     });
 
     const bogData = await bogOrderResponse.json();
+    console.log("BOG Order Response:", bogData);
 
     if (bogData && bogData._links && bogData._links.redirect && bogData._links.redirect.href) {
       res.json({ redirect: bogData._links.redirect.href });
