@@ -4,7 +4,12 @@ const cors = require("cors");
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+// A more specific CORS configuration
+app.use(cors({
+  origin: "https://smartdoor.ge", // The specific origin of your Shopify store
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 // Aggregator API Endpoints
 const BOG_AUTH_URL = "https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token";
