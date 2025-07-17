@@ -2,32 +2,23 @@ const express = require("express");
 const fetch = require("node-fetch");
 const cors = require("cors");
 
-// Define constants right after imports
 const BOG_AUTH_URL = "https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token";
 const BOG_ORDER_URL = "https://api.bog.ge/payments/v1/ecommerce/orders";
 
 const app = express();
 
-// --- MIDDLEWARE SETUP ---
-// ✅ CRITICAL: CORS middleware is first, allowing requests from your Shopify store.
 app.use(cors({
   origin: "https://smartdoor.ge",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-// ✅ SECOND: JSON middleware to parse the request body.
 app.use(express.json());
 
-
-// --- ROUTES ---
-
-// A simple root route to confirm the server is running
 app.get("/", (req, res) => {
   res.send("BOG Aggregator Server is running on Vercel ✅");
 });
 
-// The main checkout logic route
 app.post("/bog-checkout", async (req, res) => {
   const {
     productId,
@@ -46,8 +37,6 @@ app.post("/bog-checkout", async (req, res) => {
   try {
     const accessToken = await getBogAccessToken();
     const productPriceNumber = parseFloat(price);
-
-    // Use Vercel's automatic URL variable for the callback
     const callbackUrl = `https://${process.env.VERCEL_URL}/bog-callback`;
 
     const orderPayload = {
@@ -94,24 +83,25 @@ app.post("/bog-checkout", async (req, res) => {
     }
 
   } catch (err) {
-    console.error("Error during BOG checkout process:", err);
+    console.error("Error during BOG checkout process:", err.message);
     res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-// A dummy callback route for testing purposes
 app.post("/bog-callback", (req, res) => {
     console.log("Received BOG callback:", req.body);
     res.status(200).send("OK");
 });
 
-
-// --- HELPER FUNCTION ---
-
 async function getBogAccessToken() {
-  console.log(`Attempting auth with Client ID: ${process.env.BOG_CLIENT_ID}`);
+  const { BOG_CLIENT_ID, BOG_SECRET_KEY } = process.env;
 
-  const credentials = `${process.env.BOG_CLIENT_ID}:${process.env.BOG_SECRET_KEY}`;
+  if (!BOG_CLIENT_ID || !BOG_SECRET_KEY) {
+    console.error("BOG credentials are not set in environment variables.");
+    throw new Error("Server configuration error: Missing BOG credentials.");
+  }
+
+  const credentials = `${BOG_CLIENT_ID}:${BOG_SECRET_KEY}`;
   const encodedCredentials = Buffer.from(credentials).toString("base64");
 
   const authResponse = await fetch(BOG_AUTH_URL, {
@@ -127,11 +117,10 @@ async function getBogAccessToken() {
 
   if (!authData.access_token) {
     console.error("BOG AUTH FAILED:", authData);
-    throw new Error("Authorization failed");
+    throw new Error("Authorization failed with Bank of Georgia.");
   }
 
   return authData.access_token;
 }
 
-// --- EXPORT FOR VERCEL ---
 module.exports = app;
