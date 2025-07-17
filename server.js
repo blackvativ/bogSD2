@@ -123,4 +123,7 @@ async function getBogAccessToken() {
   return authData.access_token;
 }
 
-module.exports = app;
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is listening on port ${PORT}`);
+});
