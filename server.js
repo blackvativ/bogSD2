@@ -102,22 +102,15 @@ app.post("/bog-checkout", async (req, res) => {
       // Wait, standard BOG usually takes 'GC_XA' for installment/loan.
       // If the old code worked with `paymentType` passed directly, I will respect that but overwrite the logic *inside* the config object.
       // HOWEVER, 'bnpl' typically implies a specific method or just a config change.
-      // Let's look at the original code:
-      // payment_method: [paymentType],
-      // config: { loan: { type: paymentType === 'bnpl' ? 'ZERO' : 'STANDARD', month: ... } }
-      // This looks correct for BOG "Split" (ZERO) vs "Standard" (STANDARD).
-
       payment_method: paymentType === "bnpl" ? ["bnpl"] : ["bog_loan"],
-    };
-
-    if (paymentType === "installment") {
-      orderPayload.config = {
+      config: {
         loan: {
-          type: "STANDARD",
           month: finalMonth,
         },
-      };
-    }
+      },
+    };
+
+    // Note: 'config.loan.type' is for discount codes. We don't have one, so we omit it.
 
     const bogOrderResponse = await fetch(BOG_ORDER_URL, {
       method: "POST",
@@ -131,16 +124,6 @@ app.post("/bog-checkout", async (req, res) => {
     const bogData = await bogOrderResponse.json();
 
     if (
-      bogData &&
-      bogData._links &&
-      bogData._links.details &&
-      bogData._links.details.href
-    ) {
-      // Usually redirects to "details" or "redirect". Old code said "redirect".
-      // API response structure: `_links: { redirect: { href: "..." } }`
-      // I'll stick to old code's property access but add a fallback check.
-      res.json({ redirect: bogData._links.details.href });
-    } else if (
       bogData &&
       bogData._links &&
       bogData._links.redirect &&
