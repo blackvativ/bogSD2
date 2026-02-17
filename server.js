@@ -107,32 +107,17 @@ app.post("/bog-checkout", async (req, res) => {
       // config: { loan: { type: paymentType === 'bnpl' ? 'ZERO' : 'STANDARD', month: ... } }
       // This looks correct for BOG "Split" (ZERO) vs "Standard" (STANDARD).
 
-      payment_method: ["GC_XA"], // Usually it is GC_XA for both, distinguished by loan type.
-      // But if the old one used `paymentType` as the method code, that might be wrong if `paymentType` is just our internal string 'bnpl'.
-      // Code says: `const { ... paymentType } = req.body`.
-      // If the frontend sends "bnpl", then `payment_method` becomes `["bnpl"]` which is likely invalid for BOG API (expecting "GC_XA", "TB_LOAN", etc).
-      // BUT, maybe "bnpl" WAS the valid code?
-      // Let's assume the previous code was slightly broken or 'bnpl' is a placeholder.
-      // BOG Docs: method is usually 'GC_XA' for installment.
-      // I will use 'GC_XA' as the safe default for installments/loans.
-
       payment_method: paymentType === "bnpl" ? ["bnpl"] : ["bog_loan"],
-      config: {
-        loan: {
-          type: paymentType === "bnpl" ? "ZERO" : "STANDARD",
-          month: finalMonth,
-        },
-      },
     };
 
-    // If original code really worked with `paymentType` passed in, maybe the frontend was sending 'GC_XA'?
-    // I made a safer assumption to fix it to 'GC_XA' based on standard BOG integrations.
-    // If the User's previous frontend sent "GC_XA", then request.paymentType was "GC_XA".
-    // But check line 30: `paymentType`.
-    // And line 65: `type: paymentType === 'bnpl' ? ...`
-    // This implies `paymentType` was EXPECTED to be 'bnpl' or something else.
-    // If it was 'bnpl', then `payment_method: ['bnpl']` would be sent.
-    // I strongly suspect `payment_method` should be `['GC_XA']`.
+    if (paymentType === "installment") {
+      orderPayload.config = {
+        loan: {
+          type: "STANDARD",
+          month: finalMonth,
+        },
+      };
+    }
 
     const bogOrderResponse = await fetch(BOG_ORDER_URL, {
       method: "POST",
