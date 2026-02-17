@@ -116,7 +116,7 @@ app.post("/bog-checkout", async (req, res) => {
       // BOG Docs: method is usually 'GC_XA' for installment.
       // I will use 'GC_XA' as the safe default for installments/loans.
 
-      payment_method: ["GC_XA"],
+      payment_method: paymentType === "bnpl" ? ["bnpl"] : ["bog_loan"],
       config: {
         loan: {
           type: paymentType === "bnpl" ? "ZERO" : "STANDARD",
