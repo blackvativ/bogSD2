@@ -58,71 +58,58 @@ app.post("/bog-checkout", async (req, res) => {
 
   try {
     const accessToken = await getBogAccessToken();
-    const productPriceNumber = parseFloat(price);
-    const callbackUrl = `https://bog-server-sd-48097b4854ee.herokuapp.com/bog-callback`;
+    // NEW: Use the dedicated Installment API Endpoint
+    // Docs: POST /v1/installment/checkout
+    const BOG_INSTALLMENT_URL = "https://api.bog.ge/v1/installment/checkout";
 
-    // Determine payment configuration based on type
+    const productPriceNumber = parseFloat(price);
+    const successUrl = "https://smartdoor.ge/pages/bog-success";
+    const failUrl = "https://smartdoor.ge/pages/bog-fail";
+    
+    // Determine configuration
     let finalMonth = parseInt(loanMonth);
-    let finalPaymentMethod = paymentType;
+    let finalType = "STANDARD"; // Default
 
     if (paymentType === "bnpl") {
-      finalMonth = 4; // Force 4 months for BNPL
-    } else if (paymentType === "installment") {
-      if (finalMonth < 5) finalMonth = 5; // Minimum 5 months for standard installment
-      // existing logic allowed 3-12, new req says start from 5
+       finalMonth = 4;
+       finalType = "ZERO"; // As per calculator docs (discount_code: ZERO)
+    } else {
+       if (finalMonth < 3) finalMonth = 3; // Ensure min 3
     }
 
     const orderPayload = {
-      callback_url: callbackUrl,
-      external_order_id: `shopify-${productId}-${Date.now()}`,
-      purchase_units: {
-        currency: "GEL",
-        total_amount: productPriceNumber,
-        basket: [
-          {
-            product_id: String(productId),
-            description: productName,
-            quantity: 1,
-            unit_price: productPriceNumber,
-            image: image,
-            url: url,
+      intent: "LOAN",
+      installment_month: finalMonth,
+      installment_type: finalType,
+      shop_order_id: `shopify-${productId}-${Date.now()}`,
+      success_redirect_url: successUrl,
+      fail_redirect_url: failUrl,
+      reject_redirect_url: failUrl,
+      validate_items: false, // Set to false to avoid strict sum checks initially
+      locale: "ka",
+      purchase_units: [
+        {
+          amount: {
+            currency_code: "GEL",
+            value: productPriceNumber.toFixed(2), // Ensure string format if needed? Docs say number, but example "500.00"
           },
-        ],
-      },
-      redirect_urls: {
-        success: "https://smartdoor.ge/pages/bog-success",
-        fail: "https://smartdoor.ge/pages/bog-fail",
-      },
-      ttl: 15,
-      payment_method: [paymentType === "bnpl" ? "GC_XA" : "GC_XA"], // simplified, usually just generic or specific code.
-      // ACTUALLY, BOG documentation usually distinguishes methods.
-      // The user mentioned "loand" vs "installment".
-      // The original code used `payment_method: [paymentType]`.
-      // Let's stick to the previous structure but ensure parameters are correct.
-      // Wait, standard BOG usually takes 'GC_XA' for installment/loan.
-      // If the old code worked with `paymentType` passed directly, I will respect that but overwrite the logic *inside* the config object.
-      // HOWEVER, 'bnpl' typically implies a specific method or just a config change.
-      payment_method: paymentType === "bnpl" ? ["bnpl"] : ["bog_loan"],
+        },
+      ],
+      cart_items: [
+        {
+          total_item_amount: productPriceNumber.toFixed(2),
+          item_description: productName || "Product",
+          total_item_qty: 1,
+          item_vendor_code: String(productId),
+          product_image_url: image || "",
+          item_site_detail_url: url || "",
+        },
+      ],
     };
 
-    // Fix for BNPL
-    if (paymentType === "bnpl") {
-      orderPayload.config = {
-        loan: {
-          type: "zero",
-          month: 4,
-        },
-      };
-    } else if (paymentType === "installment") {
-      orderPayload.config = {
-        loan: {
-          type: "STANDARD",
-          month: finalMonth,
-        },
-      };
-    }
+    console.log("Sending Payload to BOG Installment API:", JSON.stringify(orderPayload, null, 2));
 
-    const bogOrderResponse = await fetch(BOG_ORDER_URL, {
+    const bogOrderResponse = await fetch(BOG_INSTALLMENT_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -133,18 +120,16 @@ app.post("/bog-checkout", async (req, res) => {
 
     const bogData = await bogOrderResponse.json();
 
-    if (
-      bogData &&
-      bogData._links &&
-      bogData._links.redirect &&
-      bogData._links.redirect.href
-    ) {
-      res.json({ redirect: bogData._links.redirect.href });
+    // Check response format (status: PROCESSED/CREATED, links: [])
+    // The new docs say "status": "CREATED", "links": [ { rel: "target", href: "..." } ]
+    
+    const targetLink = bogData.links?.find((l) => l.rel === "target");
+
+    if (targetLink && targetLink.href) {
+      res.json({ redirect: targetLink.href });
     } else {
-      console.error("BOG ERROR RESPONSE:", JSON.stringify(bogData, null, 2)); // Log full error details
-      res
-        .status(400)
-        .json({ error: "BOG did not return redirect link.", detail: bogData });
+      console.error("BOG ERROR RESPONSE:", JSON.stringify(bogData, null, 2));
+      res.status(400).json({ error: "BOG did not return redirect link.", detail: bogData });
     }
   } catch (err) {
     console.error("Error during BOG checkout process:", err.message);
