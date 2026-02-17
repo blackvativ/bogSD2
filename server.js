@@ -103,14 +103,21 @@ app.post("/bog-checkout", async (req, res) => {
       // If the old code worked with `paymentType` passed directly, I will respect that but overwrite the logic *inside* the config object.
       // HOWEVER, 'bnpl' typically implies a specific method or just a config change.
       payment_method: paymentType === "bnpl" ? ["bnpl"] : ["bog_loan"],
-      config: {
-        loan: {
-          month: finalMonth,
-        },
-      },
     };
 
-    // Note: 'config.loan.type' is for discount codes. We don't have one, so we omit it.
+    // Fix for "Invalid parameter: type" and "Unable to configure payment method: bnpl"
+    // 1. For 'bnpl', we do NOT send config.loan at all (it's 4 months fixed).
+    // 2. For 'bog_loan', we MUST send config.loan.month AND config.loan.type.
+    //    We revert to "STANDARD" for the type, as omitting it caused "Invalid parameter: type".
+
+    if (paymentType === "installment") {
+      orderPayload.config = {
+        loan: {
+          type: "STANDARD",
+          month: finalMonth,
+        },
+      };
+    }
 
     const bogOrderResponse = await fetch(BOG_ORDER_URL, {
       method: "POST",
