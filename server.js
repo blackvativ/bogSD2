@@ -109,7 +109,7 @@ app.post("/bog-checkout", async (req, res) => {
     if (paymentType === "bnpl") {
       orderPayload.config = {
         loan: {
-          type: "ZERO",
+          type: "STANDARD",
           month: 4,
         },
       };
