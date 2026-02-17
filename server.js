@@ -57,6 +57,10 @@ app.post("/bog-checkout", async (req, res) => {
   }
 
   try {
+    const accessToken = await getBogAccessToken();
+    const productPriceNumber = parseFloat(price);
+    const callbackUrl = `https://bog-server-sd-48097b4854ee.herokuapp.com/bog-callback`;
+
     // Determine payment configuration based on type
     let finalMonth = parseInt(loanMonth);
     let finalPaymentMethod = paymentType;
