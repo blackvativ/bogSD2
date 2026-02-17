@@ -60,7 +60,7 @@ app.post("/bog-checkout", async (req, res) => {
     const accessToken = await getBogAccessToken();
     // NEW: Use the dedicated Installment API Endpoint
     // Docs: POST /v1/installment/checkout
-    const BOG_INSTALLMENT_URL = "https://api.bog.ge/v1/installment/checkout";
+    const BOG_INSTALLMENT_URL = "https://installment.bog.ge/v1/installment/checkout";
 
     const productPriceNumber = parseFloat(price);
     const successUrl = "https://smartdoor.ge/pages/bog-success";
