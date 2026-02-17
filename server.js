@@ -68,13 +68,13 @@ app.post("/bog-checkout", async (req, res) => {
     
     // Determine configuration
     let finalMonth = parseInt(loanMonth);
-    let finalType = "STANDARD"; // Default
+    let finalType = "STANDARD"; // Try STANDARD for everything on the new API
 
     if (paymentType === "bnpl") {
        finalMonth = 4;
-       finalType = "ZERO"; // As per calculator docs (discount_code: ZERO)
+       // finalType = "ZERO"; // Failed with "Unable to configure". usage of STANDARD might be required.
     } else {
-       if (finalMonth < 3) finalMonth = 3; // Ensure min 3
+       if (finalMonth < 3) finalMonth = 3; 
     }
 
     const orderPayload = {
@@ -85,13 +85,13 @@ app.post("/bog-checkout", async (req, res) => {
       success_redirect_url: successUrl,
       fail_redirect_url: failUrl,
       reject_redirect_url: failUrl,
-      validate_items: false, // Set to false to avoid strict sum checks initially
+      validate_items: false,
       locale: "ka",
       purchase_units: [
         {
           amount: {
             currency_code: "GEL",
-            value: productPriceNumber.toFixed(2), // Ensure string format if needed? Docs say number, but example "500.00"
+            value: productPriceNumber, // Send as Number (API doc says number, example says string. Let's try number)
           },
         },
       ],
