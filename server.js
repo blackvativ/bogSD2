@@ -105,12 +105,15 @@ app.post("/bog-checkout", async (req, res) => {
       payment_method: paymentType === "bnpl" ? ["bnpl"] : ["bog_loan"],
     };
 
-    // Fix for "Invalid parameter: type" and "Unable to configure payment method: bnpl"
-    // 1. For 'bnpl', we do NOT send config.loan at all (it's 4 months fixed).
-    // 2. For 'bog_loan', we MUST send config.loan.month AND config.loan.type.
-    //    We revert to "STANDARD" for the type, as omitting it caused "Invalid parameter: type".
-
-    if (paymentType === "installment") {
+    // Fix for BNPL
+    if (paymentType === "bnpl") {
+      orderPayload.config = {
+        loan: {
+          type: "bnpl",
+          month: 4,
+        },
+      };
+    } else if (paymentType === "installment") {
       orderPayload.config = {
         loan: {
           type: "STANDARD",
